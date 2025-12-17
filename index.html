@@ -36,6 +36,7 @@ body{
   border-radius:14px;
 }
 
+/* BORDA */
 .container::before{
   content:"";
   position:absolute;
@@ -51,7 +52,7 @@ body{
     transparent
   );
   background-size:300% 300%;
-  animation:borderFlow 6s linear infinite;
+  animation:borderFlow 14s linear infinite;
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
@@ -60,7 +61,7 @@ body{
   pointer-events:none;
 }
 
-.container.active::before{animation-duration:2s}
+.container.active::before{animation-duration:3s}
 .container.success::before{background:linear-gradient(90deg,transparent,var(--success),transparent)}
 .container.error::before{background:linear-gradient(90deg,transparent,var(--error),transparent)}
 
@@ -115,20 +116,19 @@ button{
 <body>
 
 <div class="container" id="container">
-  <h1>tradutor</h1>
+  <h1>CIPHER CIRCLE</h1>
 
   <input id="chave" placeholder="Chave secreta">
-
   <textarea id="entrada" placeholder="Digite ou cole o texto"></textarea>
 
-  <button onclick="enviar()">Enviar</button>
+  <button onclick="processar()">Enviar</button>
   <button onclick="colar()">Colar</button>
   <button onclick="copiar()">Copiar resultado</button>
   <button class="secondary" onclick="limpar()">Apagar texto</button>
 
   <textarea id="saida" placeholder="Resultado"></textarea>
 
-  <div class="footer">criptografia · privado · seguro</div>
+  <div class="footer">offline · privado · local</div>
 </div>
 
 <script>
@@ -138,14 +138,20 @@ const container=document.getElementById("container");
 
 function efeito(tipo){
   container.classList.add(tipo);
-  setTimeout(()=>container.classList.remove(tipo),800);
+  setTimeout(()=>container.classList.remove(tipo),700);
 }
 
 function gerarMapas(chave){
-  let seed=[...chave].reduce((s,c)=>s+c.charCodeAt(0),0);
+  let seed=0;
+  for(let c of chave) seed+=c.charCodeAt(0);
+
   let destino=alfabeto.split("").reverse().join("").replace(" ","|");
   destino=destino.slice(seed%destino.length)+destino.slice(0,seed%destino.length);
-  "aeiou".split("").forEach((v,i)=>destino=destino.replace(v,simbolos[i]));
+
+  "aeiou".split("").forEach((v,i)=>{
+    destino=destino.replace(v,simbolos[i]);
+  });
+
   let mapa={},inv={};
   for(let i=0;i<alfabeto.length;i++){
     mapa[alfabeto[i]]=destino[i];
@@ -154,26 +160,36 @@ function gerarMapas(chave){
   return{mapa,inv};
 }
 
-function enviar(){
-  if(!chave.value){efeito("error");return}
-  const{mapa}=gerarMapas(chave.value.toLowerCase());
-  saida.value=[...entrada.value.toLowerCase()].map(c=>mapa[c]??c).join("");
-  efeito("active");
+function pareceCodificado(texto){
+  return /[@#$&+_\-()=!?:;|]/.test(texto);
 }
 
-function pareceCodificado(t){
-  return /[@#$&+_\-()=!?:;|]/.test(t);
+function processar(){
+  if(!chave.value){efeito("error");return;}
+
+  const texto=entrada.value;
+  if(!texto.trim()) return;
+
+  const{mapa,inv}=gerarMapas(chave.value.toLowerCase());
+
+  saida.value = pareceCodificado(texto)
+    ? [...texto].map(c=>inv[c]??c).join("")
+    : [...texto.toLowerCase()].map(c=>mapa[c]??c).join("");
+
+  efeito("active");
 }
 
 async function colar(){
-  if(!chave.value){efeito("error");return}
-  let texto=await navigator.clipboard.readText();
+  if(!chave.value){efeito("error");return;}
+  let texto;
+  try{
+    texto=await navigator.clipboard.readText();
+  }catch{
+    efeito("error");
+    return;
+  }
   entrada.value=texto;
-  const{mapa,inv}=gerarMapas(chave.value.toLowerCase());
-  saida.value=pareceCodificado(texto)
-    ? [...texto].map(c=>inv[c]??c).join("")
-    : [...texto.toLowerCase()].map(c=>mapa[c]??c).join("");
-  efeito("active");
+  processar();
 }
 
 async function copiar(){
