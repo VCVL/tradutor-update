@@ -12,7 +12,7 @@
   --text:#e5e7eb;
   --muted:#94a3b8;
   --accent:#38bdf8;
-  --border-dark:#1e293b;
+  --border:#1e293b;
   --success:#22c55e;
   --error:#ef4444;
 }
@@ -21,10 +21,14 @@
 
 body{
   margin:0;
-  padding:14px;
+  padding:16px;
   font-family:system-ui,sans-serif;
   background:radial-gradient(circle at top,#0b122f,var(--bg) 70%);
   color:var(--text);
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
 
 .container{
@@ -34,9 +38,10 @@ body{
   padding:16px;
   background:var(--panel);
   border-radius:14px;
+  box-shadow:0 0 40px rgba(255,255,255,0.03), 0 0 80px rgba(255,255,255,0.02);
 }
 
-/* BORDA */
+/* BORDA ANIMADA (APENAS BORDA) */
 .container::before{
   content:"";
   position:absolute;
@@ -47,7 +52,7 @@ body{
     90deg,
     transparent,
     var(--accent),
-    #fff,
+    #ffffff,
     var(--accent),
     transparent
   );
@@ -62,8 +67,12 @@ body{
 }
 
 .container.active::before{animation-duration:3s}
-.container.success::before{background:linear-gradient(90deg,transparent,var(--success),transparent)}
-.container.error::before{background:linear-gradient(90deg,transparent,var(--error),transparent)}
+.container.success::before{
+  background:linear-gradient(90deg,transparent,var(--success),transparent);
+}
+.container.error::before{
+  background:linear-gradient(90deg,transparent,var(--error),transparent);
+}
 
 @keyframes borderFlow{
   from{background-position:0% 50%}
@@ -75,6 +84,7 @@ h1{
   font-size:18px;
   letter-spacing:2px;
   color:var(--accent);
+  margin:0 0 16px 0;
 }
 
 input,textarea,button{
@@ -82,20 +92,29 @@ input,textarea,button{
   margin-top:10px;
   padding:12px;
   border-radius:10px;
-  border:1px solid var(--border-dark);
+  border:1px solid var(--border);
   background:#020617;
   color:var(--text);
   text-align:center;
   font-size:15px;
 }
 
-textarea{height:120px;resize:none}
+textarea{
+  height:120px;
+  resize:none;
+  text-align:left;
+}
 
 button{
   border:none;
   background:linear-gradient(135deg,#0ea5e9,#2563eb);
   font-weight:600;
   cursor:pointer;
+  transition:opacity 0.2s;
+}
+
+button:active{
+  opacity:0.8;
 }
 
 .secondary{
@@ -118,95 +137,160 @@ button{
 <div class="container" id="container">
   <h1>CIPHER CIRCLE</h1>
 
-  <input id="chave" placeholder="Chave secreta">
+  <input id="chave" type="text" placeholder="Digite ou cole a chave secreta" autocomplete="off">
+
   <textarea id="entrada" placeholder="Digite ou cole o texto"></textarea>
 
-  <button onclick="processar()">Enviar</button>
+  <button onclick="codificar()">Codificar</button>
+  <button onclick="decodificar()">Decodificar</button>
   <button onclick="colar()">Colar</button>
-  <button onclick="copiar()">Copiar resultado</button>
-  <button class="secondary" onclick="limpar()">Apagar texto</button>
+  <button onclick="copiar()">Copiar</button>
+  <button class="secondary" onclick="limpar()">Apagar tudo</button>
 
-  <textarea id="saida" placeholder="Resultado"></textarea>
+  <textarea id="saida" placeholder="Digite ou cole o resultado" readonly></textarea>
 
-  <div class="footer">offline · privado · local</div>
+  <div class="footer">criptografia</div>
 </div>
 
 <script>
-const alfabeto="abcdefghijklmnopqrstuvwxyz ";
-const simbolos="@#$&+_-()=!?:;";
-const container=document.getElementById("container");
+const base = "abcdefghijklmnopqrstuvwxyzáàâãéêíóôõúçABCDEFGHIJKLMNOPQRSTUVWXYZÁÀÂÃÉÊÍÓÔÕÚÇ0123456789 .,!?;:";
+const simbolos = "@#$&+_-()=*%¨/\\[]{}";
+const container = document.getElementById("container");
+const chave = document.getElementById("chave");
+const entrada = document.getElementById("entrada");
+const saida = document.getElementById("saida");
 
 function efeito(tipo){
   container.classList.add(tipo);
-  setTimeout(()=>container.classList.remove(tipo),700);
+  setTimeout(()=>container.classList.remove(tipo),600);
 }
 
-function gerarMapas(chave){
-  let seed=0;
-  for(let c of chave) seed+=c.charCodeAt(0);
+/* CRIPTOGRAFIA ESTÁVEL E REVERSÍVEL */
+function gerarMapas(chaveTexto){
+  let seed = 0;
+  for (let c of chaveTexto) seed += c.charCodeAt(0);
 
-  let destino=alfabeto.split("").reverse().join("").replace(" ","|");
-  destino=destino.slice(seed%destino.length)+destino.slice(0,seed%destino.length);
-
-  "aeiou".split("").forEach((v,i)=>{
-    destino=destino.replace(v,simbolos[i]);
-  });
-
-  let mapa={},inv={};
-  for(let i=0;i<alfabeto.length;i++){
-    mapa[alfabeto[i]]=destino[i];
-    inv[destino[i]]=alfabeto[i];
+  // Criar alfabeto embaralhado
+  let destino = base.split("");
+  
+  // Embaralhar usando a seed da chave
+  for (let i = destino.length - 1; i > 0; i--) {
+    seed = (seed * 9301 + 49297) % 233280;
+    const j = seed % (i + 1);
+    [destino[i], destino[j]] = [destino[j], destino[i]];
   }
-  return{mapa,inv};
+
+  // Criar mapas de codificação e decodificação
+  let mapa = {};
+  let inverso = {};
+  
+  for (let i = 0; i < base.length; i++) {
+    mapa[base[i]] = destino[i];
+    inverso[destino[i]] = base[i];
+  }
+
+  return { mapa, inverso };
 }
 
+/* DETECÇÃO AUTOMÁTICA SE É TEXTO CODIFICADO OU NORMAL */
 function pareceCodificado(texto){
-  return /[@#$&+_\-()=!?:;|]/.test(texto);
+  // Verifica se tem muitos caracteres embaralhados
+  const caracteresOriginais = texto.split('').filter(c => base.includes(c)).length;
+  const total = texto.length;
+  
+  // Se menos de 70% dos caracteres estão no alfabeto base, provavelmente está codificado
+  return caracteresOriginais / total < 0.7;
 }
 
-function processar(){
-  if(!chave.value){efeito("error");return;}
+function codificar(){
+  const chaveVal = chave.value.trim();
+  const entradaVal = entrada.value;
+  
+  if (!chaveVal){ 
+    efeito("error");
+    alert("Digite uma chave secreta!");
+    return;
+  }
+  
+  if (!entradaVal.trim()){
+    efeito("error");
+    return;
+  }
 
-  const texto=entrada.value;
-  if(!texto.trim()) return;
+  const { mapa } = gerarMapas(chaveVal);
+  
+  // CODIFICAR
+  saida.value = [...entradaVal].map(c => mapa[c] || c).join("");
+  efeito("active");
+}
 
-  const{mapa,inv}=gerarMapas(chave.value.toLowerCase());
+function decodificar(){
+  const chaveVal = chave.value.trim();
+  const entradaVal = entrada.value;
+  
+  if (!chaveVal){ 
+    efeito("error");
+    alert("Digite uma chave secreta!");
+    return;
+  }
+  
+  if (!entradaVal.trim()){
+    efeito("error");
+    return;
+  }
 
-  saida.value = pareceCodificado(texto)
-    ? [...texto].map(c=>inv[c]??c).join("")
-    : [...texto.toLowerCase()].map(c=>mapa[c]??c).join("");
-
+  const { inverso } = gerarMapas(chaveVal);
+  
+  // DECODIFICAR
+  saida.value = [...entradaVal].map(c => inverso[c] || c).join("");
   efeito("active");
 }
 
 async function colar(){
-  if(!chave.value){efeito("error");return;}
-  let texto;
   try{
-    texto=await navigator.clipboard.readText();
-  }catch{
+    const texto = await navigator.clipboard.readText();
+    entrada.value = texto;
+    efeito("active");
+  }catch(err){
     efeito("error");
-    return;
+    alert("Não foi possível colar. Permita o acesso à área de transferência.");
   }
-  entrada.value=texto;
-  processar();
 }
 
 async function copiar(){
+  if (!saida.value.trim()){
+    efeito("error");
+    return;
+  }
+  
   try{
     await navigator.clipboard.writeText(saida.value);
-    entrada.value="";
-    saida.value="";
+    entrada.value = "";
+    saida.value = "";
     efeito("success");
-  }catch{
+  }catch(err){
     efeito("error");
+    alert("Não foi possível copiar.");
   }
 }
 
 function limpar(){
-  entrada.value="";
-  saida.value="";
+  entrada.value = "";
+  saida.value = "";
 }
+
+// Permitir Enter para processar
+entrada.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.ctrlKey) {
+    codificar();
+  }
+});
+
+chave.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    entrada.focus();
+  }
+});
 </script>
 
 </body>
